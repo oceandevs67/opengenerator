@@ -26,27 +26,26 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100vh;
+    min-height: 100vh;
 }
 
-.card {
-    width: 600px;
-    border-radius: 16px;
-    background: var(--card);
-    padding: 20px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+.container {
+    width: 700px;
 }
 
-.tabs {
+.topbar {
     display: flex;
-    justify-content: space-around;
+    justify-content: space-between;
+    background: var(--card);
+    padding: 12px 20px;
+    border-radius: 14px 14px 0 0;
     margin-bottom: 20px;
-    cursor: pointer;
 }
 
 .tab {
-    padding: 10px 20px;
-    border-radius: 10px;
+    cursor: pointer;
+    padding: 10px 16px;
+    border-radius: 8px;
     transition: 0.2s;
 }
 
@@ -55,51 +54,81 @@ body {
     font-weight: bold;
 }
 
-.section { display: none; }
-.section.active { display: block; }
+.card {
+    background: var(--card);
+    border-radius: 14px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
 
-input, button { width: 100%; padding: 12px; margin: 6px 0; border-radius: 10px; border: none; outline: none; }
-button { background: var(--accent); color: white; cursor: pointer; transition: 0.2s; }
+input, button {
+    width: 100%;
+    padding: 12px;
+    margin: 6px 0;
+    border-radius: 10px;
+    border: none;
+    outline: none;
+}
+
+button {
+    background: var(--accent);
+    color: white;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
 button:hover { transform: translateY(-2px); }
 
-.item { padding: 8px; border-bottom: 1px solid #2a335a; margin-bottom: 4px; }
+.section { display: none; width: 100%; }
+.section.active { display: block; }
+
+.item { padding: 8px; border-bottom: 1px solid #2a335a; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; width: 100%; }
+.item button { width: auto; padding: 6px 12px; }
 </style>
 </head>
 
 <body>
-<div class="card">
 
-    <div id="login-section">
+<div class="container">
+
+    <!-- Login -->
+    <div id="login-section" class="card">
         <h2>Login</h2>
         <button onclick="loginGoogle()">Sign in with Google</button>
     </div>
 
+    <!-- App -->
     <div id="app-section" class="hidden">
-        <div class="tabs">
+
+        <!-- Top tabs -->
+        <div class="topbar">
             <div class="tab active" onclick="showTab('home')">Home</div>
             <div class="tab" onclick="showTab('upload')">Upload</div>
             <div class="tab" onclick="showTab('store')">Store</div>
             <div class="tab" onclick="logout()">Logout</div>
         </div>
 
-        <div id="home" class="section active">
+        <!-- Sections -->
+        <div id="home" class="section active card">
             <h3>Welcome!</h3>
             <p>Use the tabs above to navigate.</p>
         </div>
 
-        <div id="upload" class="section">
+        <div id="upload" class="section card">
             <h3>Upload Game</h3>
             <input id="gameName" placeholder="Game name">
             <input id="appid" placeholder="AppID">
             <button onclick="addGame()">Upload</button>
         </div>
 
-        <div id="store" class="section">
+        <div id="store" class="section card">
             <h3>Store</h3>
             <div id="store-list"></div>
         </div>
-    </div>
 
+    </div>
 </div>
 
 <script>
@@ -112,15 +141,15 @@ const firebaseConfig = {
   appId: "1:290500738508:web:785b834ef0ee67673bb169",
   measurementId: "G-LD173LGGPQ"
 };
-firebase.initializeApp(firebaseConfig);
 
+firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
 /* Tabs */
 function showTab(id){
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
     document.querySelector(`[onclick="showTab('${id}')"]`).classList.add('active');
     document.getElementById(id).classList.add('active');
 }
@@ -141,12 +170,22 @@ function logout(){
     auth.signOut();
 }
 
-/* Store */
+/* Store / Upload */
 function addGame(){
+    const user = auth.currentUser;
+    if(!user) return alert("You must sign in to upload!");
     const name = document.getElementById('gameName').value.trim();
     const appid = document.getElementById('appid').value.trim();
     if(!name || !/^\d+$/.test(appid)) return alert('Enter valid game name & numeric AppID');
-    db.collection('games').add({name, appid, downloads:0, time:Date.now()});
+
+    db.collection('games').add({
+        name,
+        appid,
+        uploader: user.displayName || user.email,
+        downloads:0,
+        time: Date.now()
+    });
+
     document.getElementById('gameName').value='';
     document.getElementById('appid').value='';
 }
@@ -160,7 +199,10 @@ function loadStore(){
             const g = doc.data();
             storeList.innerHTML += `
                 <div class="item">
-                    <b>${g.name}</b> (AppID: ${g.appid}) — Downloads: ${g.downloads}
+                    <div>
+                        <b>${g.name}</b> (AppID: ${g.appid})<br>
+                        <small>Uploaded by: ${g.uploader}</small>
+                    </div>
                     <button onclick="download('${doc.id}','${g.appid}')">Lua</button>
                 </div>
             `;
@@ -169,6 +211,8 @@ function loadStore(){
 }
 
 function download(docId, appid){
+    const user = auth.currentUser;
+    if(!user) return alert("You must sign in to download!");
     const lua = `addappid(${appid})`;
     const blob = new Blob([lua], {type:'text/plain'});
     const a = document.createElement('a');
