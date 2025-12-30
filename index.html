@@ -84,32 +84,41 @@ auth.onAuthStateChanged(user => {
 });
 
 function login() {
-    const email = email.value;
-    const password = password.value;
+    const emailInput = document.getElementById("email").value;
+    const passwordInput = document.getElementById("password").value;
 
-    auth.signInWithEmailAndPassword(email, password)
-        .catch(() => auth.createUserWithEmailAndPassword(email, password));
+    if (!emailInput || !passwordInput) {
+        return alert("Please enter email and password");
+    }
+
+    auth.signInWithEmailAndPassword(emailInput, passwordInput)
+        .catch(() => auth.createUserWithEmailAndPassword(emailInput, passwordInput)
+            .catch(err => alert(err.message))
+        );
 }
+
 
 function logout() {
     auth.signOut();
 }
 
-/* STORE */
 function addGame() {
-    const name = gameName.value.trim();
-    const id = appid.value.trim();
-    if (!name || !/^\d+$/.test(id)) return;
+    const gameNameInput = document.getElementById("gameName").value.trim();
+    const appidInput = document.getElementById("appid").value.trim();
+    if (!gameNameInput || !/^\d+$/.test(appidInput)) {
+        return alert("Enter valid game name and numeric AppID");
+    }
 
     db.collection("games").add({
-        name,
-        appid: id,
+        name: gameNameInput,
+        appid: appidInput,
         time: Date.now()
     });
 
-    gameName.value = "";
-    appid.value = "";
+    document.getElementById("gameName").value = "";
+    document.getElementById("appid").value = "";
 }
+
 
 function loadStore() {
     db.collection("games")
