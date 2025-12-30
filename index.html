@@ -256,14 +256,19 @@ function loadStore(){
 function download(docId, appid){
     const user = auth.currentUser;
     if(!user) return alert("Sign in first!");
-    const lua = `addappid(${appid})`;
-    const blob = new Blob([lua], {type:'text/plain'});
+    
+    const luaLine = `addappid(${appid})`; // always just the AppID
+    
+    const blob = new Blob([luaLine], {type:'text/plain'});
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `${appid}.lua`;
     a.click();
+    
+    // increment downloads
     db.collection('games').doc(docId).update({downloads: firebase.firestore.FieldValue.increment(1)});
 }
+
 </script>
 
 </body>
