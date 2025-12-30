@@ -2,176 +2,137 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Lua AppID Generator</title>
+<title>Lua AppID Store</title>
+
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
 <style>
-:root {
-    --bg: #0b0f1a;
-    --card: rgba(255,255,255,0.08);
-    --border: rgba(255,255,255,0.15);
-    --accent: #5da9ff;
-    --text: #eaeaf0;
-    --muted: #9aa4b2;
-}
-
-* { box-sizing: border-box; }
-
 body {
     margin: 0;
-    height: 100vh;
-    background: radial-gradient(circle at top, #16213e, var(--bg));
-    font-family: "Segoe UI", system-ui, sans-serif;
+    font-family: system-ui, sans-serif;
+    background: #0b0f1a;
+    color: white;
     display: flex;
-    align-items: center;
     justify-content: center;
-    color: var(--text);
+    align-items: center;
+    height: 100vh;
 }
-
 .card {
     width: 420px;
-    padding: 30px;
-    border-radius: 18px;
-    background: var(--card);
-    backdrop-filter: blur(20px);
-    border: 1px solid var(--border);
-    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-    text-align: center;
-}
-
-h1 { margin: 0 0 10px; }
-.subtitle { color: var(--muted); margin-bottom: 20px; }
-
-input {
-    width: 100%;
-    padding: 14px;
-    border-radius: 12px;
-    border: 1px solid var(--border);
-    background: rgba(0,0,0,0.35);
-    color: var(--text);
-    font-size: 16px;
-    margin-bottom: 12px;
-}
-
-button {
-    width: 100%;
-    padding: 14px;
+    padding: 20px;
     border-radius: 14px;
-    border: none;
-    font-size: 16px;
-    font-weight: 600;
-    cursor: pointer;
-    background: linear-gradient(135deg, #5da9ff, #7f6bff);
-    color: white;
+    background: #141a2e;
 }
-
-button:disabled { opacity: 0.5; cursor: not-allowed; }
-
-.list {
-    text-align: left;
-    margin-top: 15px;
-    font-size: 14px;
+input, button {
+    width: 100%;
+    padding: 12px;
+    margin: 6px 0;
 }
-
-.list div {
-    padding: 6px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-}
-
+button { cursor: pointer; }
 .hidden { display: none; }
-.accent { color: var(--accent); font-weight: 600; }
+.item {
+    padding: 6px;
+    border-bottom: 1px solid #2a335a;
+}
 </style>
 </head>
 
 <body>
 
-<!-- LOGIN -->
-<div class="card" id="loginCard">
-    <h1>Login</h1>
-    <div class="subtitle">Enter a username to continue</div>
-    <input id="usernameInput" placeholder="Username">
-    <button onclick="login()">Login</button>
+<div class="card" id="auth">
+    <h2>Login</h2>
+    <input id="email" placeholder="Email">
+    <input id="password" type="password" placeholder="Password">
+    <button onclick="login()">Login / Register</button>
 </div>
 
-<!-- APP -->
-<div class="card hidden" id="appCard">
-    <h1>Lua AppID Generator</h1>
-    <div class="subtitle">Logged in as <span class="accent" id="userLabel"></span></div>
+<div class="card hidden" id="app">
+    <button onclick="logout()">Logout</button>
 
-    <input id="appidInput" placeholder="Enter AppID">
-    <button onclick="generate()">Generate Lua</button>
+    <h3>Add Game</h3>
+    <input id="gameName" placeholder="Game name">
+    <input id="appid" placeholder="AppID">
+    <button onclick="addGame()">Upload</button>
 
-    <div class="list">
-        <h3>Most Downloaded AppIDs</h3>
-        <div id="leaderboard"></div>
-    </div>
+    <h3>Store</h3>
+    <div id="store"></div>
 </div>
 
 <script>
-const loginCard = document.getElementById("loginCard");
-const appCard = document.getElementById("appCard");
-const userLabel = document.getElementById("userLabel");
-const leaderboard = document.getElementById("leaderboard");
+/* 🔥 PASTE YOUR FIREBASE CONFIG HERE 🔥 */
+const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT.firebaseapp.com",
+    projectId: "YOUR_PROJECT_ID",
+};
 
-const statsKey = "appid_download_stats";
+firebase.initializeApp(firebaseConfig);
 
-// Auto login
-const savedUser = localStorage.getItem("username");
-if (savedUser) {
-    startApp(savedUser);
-}
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+/* AUTH */
+auth.onAuthStateChanged(user => {
+    document.getElementById("auth").classList.toggle("hidden", !!user);
+    document.getElementById("app").classList.toggle("hidden", !user);
+    if (user) loadStore();
+});
 
 function login() {
-    const name = document.getElementById("usernameInput").value.trim();
-    if (!name) return alert("Enter a username");
+    const email = email.value;
+    const password = password.value;
 
-    localStorage.setItem("username", name);
-    startApp(name);
+    auth.signInWithEmailAndPassword(email, password)
+        .catch(() => auth.createUserWithEmailAndPassword(email, password));
 }
 
-function startApp(name) {
-    userLabel.textContent = name;
-    loginCard.classList.add("hidden");
-    appCard.classList.remove("hidden");
-    renderLeaderboard();
+function logout() {
+    auth.signOut();
 }
 
-function generate() {
-    const appid = document.getElementById("appidInput").value.trim();
-    if (!/^\d+$/.test(appid)) return alert("Invalid AppID");
+/* STORE */
+function addGame() {
+    const name = gameName.value.trim();
+    const id = appid.value.trim();
+    if (!name || !/^\d+$/.test(id)) return;
 
+    db.collection("games").add({
+        name,
+        appid: id,
+        time: Date.now()
+    });
+
+    gameName.value = "";
+    appid.value = "";
+}
+
+function loadStore() {
+    db.collection("games")
+      .orderBy("time", "desc")
+      .onSnapshot(snapshot => {
+        store.innerHTML = "";
+        snapshot.forEach(doc => {
+            const g = doc.data();
+            store.innerHTML += `
+                <div class="item">
+                    <b>${g.name}</b><br>
+                    AppID: ${g.appid}
+                    <button onclick="download('${g.appid}')">Lua</button>
+                </div>
+            `;
+        });
+      });
+}
+
+function download(appid) {
     const lua = `addappid(${appid})`;
     const blob = new Blob([lua], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-
     const a = document.createElement("a");
-    a.href = url;
+    a.href = URL.createObjectURL(blob);
     a.download = `${appid}.lua`;
     a.click();
-
-    URL.revokeObjectURL(url);
-
-    incrementDownload(appid);
-}
-
-function incrementDownload(appid) {
-    const stats = JSON.parse(localStorage.getItem(statsKey) || "{}");
-    stats[appid] = (stats[appid] || 0) + 1;
-    localStorage.setItem(statsKey, JSON.stringify(stats));
-    renderLeaderboard();
-}
-
-function renderLeaderboard() {
-    const stats = JSON.parse(localStorage.getItem(statsKey) || "{}");
-
-    const sorted = Object.entries(stats)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5);
-
-    leaderboard.innerHTML = sorted.length
-        ? sorted.map(([id, count]) =>
-            `<div>AppID ${id} — ${count} downloads</div>`
-          ).join("")
-        : "<div>No downloads yet</div>";
 }
 </script>
 
